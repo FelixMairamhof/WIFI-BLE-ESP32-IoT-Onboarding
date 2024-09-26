@@ -1,29 +1,51 @@
 #include <Arduino.h>
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
+#include <NimBLEDevice.h>
+#include <WiFi.h>
 
-// See the following for generating UUIDs:
-// https://www.uuidgenerator.net/
-
-#define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+// Define service and characteristic UUIDs
+#define SERVICE_UUID "b2bbc642-46da-11ed-b878-0242ac120002"  // Replace with your UUID
+#define CHARACTERISTIC_UUID "c9af9c76-46de-11ed-b878-0242ac120002" // Replace with your UUID
 
 // Callback class to handle incoming write requests
-class MyCallbacks : public BLECharacteristicCallbacks
+class MyCallbacks : public NimBLECharacteristicCallbacks
 {
-  void onWrite(BLECharacteristic *pCharacteristic)
+  void onWrite(NimBLECharacteristic *pCharacteristic)
   {
     std::string value = pCharacteristic->getValue();
 
     if (value.length() > 0)
     {
-      Serial.println("Received message: ");
-      for (int i = 0; i < value.length(); i++)
+      Serial.println(F("Received message: "));
+      Serial.println(value.c_str());
+
+      // Check for connect command using compare
+      if (value.compare(0, 8, "connect:") == 0)
       {
-        Serial.print(value[i]);
+        // Extract credentials
+        String credentials = String(value.substr(8).c_str());
+        int delimiterIndex = credentials.indexOf(':'); // Find delimiter
+        if (delimiterIndex != -1) {
+          String wifi_ssid = credentials.substring(0, delimiterIndex);
+          String wifi_password = credentials.substring(delimiterIndex + 1);
+
+          // Connect to Wi-Fi
+          WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str());
+          Serial.print(F("Connecting to Wi-Fi: "));
+          Serial.println(wifi_ssid);
+
+          // Wait for connection
+          while (WiFi.status() != WL_CONNECTED) {
+            delay(500);
+            Serial.print(F("."));
+          }
+          Serial.println(F("\nConnected to Wi-Fi!"));
+
+          // Notify the client about the connection status
+          String response = "Connected to " + wifi_ssid;
+          pCharacteristic->setValue(response.c_str());
+          pCharacteristic->notify();
+        }
       }
-      Serial.println(); // Move to a new line after printing the message
     }
   }
 };
@@ -31,31 +53,36 @@ class MyCallbacks : public BLECharacteristicCallbacks
 void setup()
 {
   Serial.begin(115200);
-  Serial.println("Starting BLE work!");
+  Serial.println(F("Starting NimBLE work!"));
 
-  BLEDevice::init("MyESP32Bauer");
-  BLEServer *pServer = BLEDevice::createServer();
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
+  // Initialize NimBLE
+  NimBLEDevice::init("MyESP32NimBLE");
+
+  // Create service
+  NimBLEService *pService = new NimBLEService(SERVICE_UUID);
+
+  // Create characteristic with read/write properties
+  NimBLECharacteristic *pCharacteristic = pService->createCharacteristic(
       CHARACTERISTIC_UUID,
-      BLECharacteristic::PROPERTY_READ |
-          BLECharacteristic::PROPERTY_WRITE);
+      NIMBLE_PROPERTY::READ |
+      NIMBLE_PROPERTY::WRITE |
+      NIMBLE_PROPERTY::NOTIFY
+  );
 
-  pCharacteristic->setValue("Hello World says Neil");
+  pCharacteristic->setValue("Hello World!");
   pCharacteristic->setCallbacks(new MyCallbacks());
   pService->start();
-  // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+
+  // Start advertising
+  NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
-  pAdvertising->setMinPreferred(0x12);
-  BLEDevice::startAdvertising();
-  Serial.println("Characteristic defined! Now you can read it in your phone!");
+  NimBLEDevice::startAdvertising();
+  Serial.println(F("Characteristic defined! Now you can read it on your phone!"));
 }
 
 void loop()
 {
-  // put your main code here, to run repeatedly:
+  // Keep the loop empty or you can add periodic tasks
   delay(2000);
 }
