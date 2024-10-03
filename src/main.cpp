@@ -32,7 +32,7 @@ class MyCallbacks : public NimBLECharacteristicCallbacks {
 String scanWiFiNetworks() {
     String result = "{\"wifiNetworks\":[";
     int n = WiFi.scanNetworks();  // Start scanning for networks
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < 3; i++) {
         if (i > 0) {
             result += ",";
         }
